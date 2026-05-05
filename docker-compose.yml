@@ -1,0 +1,12 @@
+services:
+  security-app:
+    build: .
+    container_name: security_score_manager
+    ports:
+#      - "8501:8501"
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+    restart: unless-stopped
