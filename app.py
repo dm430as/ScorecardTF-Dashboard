@@ -135,6 +135,8 @@ def compute_scores(data_bytes: bytes, rules_json: str) -> pd.DataFrame:
 
 if "sec_data" not in st.session_state:
     st.session_state.sec_data = DEFAULT_DATA
+if "editor_version" not in st.session_state:
+    st.session_state.editor_version = 0
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -213,9 +215,28 @@ edited_df = st.data_editor(
     num_rows="dynamic",
     use_container_width=True,
     column_config=column_config,
-    key="data_editor_main",
+    key=f"data_editor_{st.session_state.editor_version}",
 )
-st.session_state.sec_data = edited_df.to_dict(orient="records")
+
+_committed_df = pd.DataFrame(st.session_state.sec_data)[REQUIRED_COLS]
+_has_changes = (
+    edited_df.reset_index(drop=True).astype(str).values.tolist()
+    != _committed_df.reset_index(drop=True).astype(str).values.tolist()
+)
+
+_apply_col, _discard_col, _ = st.columns([1, 1, 6])
+with _apply_col:
+    if st.button("✅ Apply Changes", type="primary", disabled=not _has_changes):
+        st.session_state.sec_data = edited_df.to_dict(orient="records")
+        st.session_state.editor_version += 1
+        st.rerun()
+with _discard_col:
+    if st.button("↩ Discard Changes", disabled=not _has_changes):
+        st.session_state.editor_version += 1
+        st.rerun()
+
+# Downstream sections use the last applied state, not the live editor state
+edited_df = _committed_df
 
 
 # ── 2. Sankey ─────────────────────────────────────────────────────────────────
@@ -292,7 +313,7 @@ def plot_hierarchy(df, hide_total=False):
 if not edited_df.empty:
     vis_ctrl_col, vis_toggle_col = st.columns([5, 2])
     with vis_toggle_col:
-        hide_total_node = st.checkbox("Hide Total Score node", value=False, key="hide_total_node")
+        hide_total_node = st.checkbox("Hide Total Score node", value=True, key="hide_total_node")
     plot_hierarchy(edited_df, hide_total=hide_total_node)
 else:
     st.warning("No data to visualize.")
