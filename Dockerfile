@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the app code
 COPY app.py .
-COPY DEFAULT_DATA.json
+COPY DEFAULT_DATA.json .
 
 # Expose Streamlit's default port
 EXPOSE 8501
