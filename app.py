@@ -430,25 +430,34 @@ st.session_state.sec_data = edited_df.to_dict(orient="records")
 st.subheader("2. Security Mindmap (Visual Flow)")
 
 
-def plot_hierarchy(df):
+def plot_hierarchy(df, hide_total=False):
     main_cats = df["Main Category"].unique().tolist()
     sub_ids   = (df["Main Category"] + " :: " + df["Sub Security Score"]).unique().tolist()
     item_ids  = (df["Main Category"] + " :: " + df["Sub Security Score"] + " :: " + df["Item"]).unique().tolist()
 
-    all_node_ids = ["Total Score"] + main_cats + sub_ids + item_ids
-    all_labels   = (
-        ["Total Score"]
-        + main_cats
-        + [s.split(" :: ", 1)[1] for s in sub_ids]
-        + [i.split(" :: ", 2)[2] for i in item_ids]
-    )
+    if hide_total:
+        all_node_ids = main_cats + sub_ids + item_ids
+        all_labels   = (
+            main_cats
+            + [s.split(" :: ", 1)[1] for s in sub_ids]
+            + [i.split(" :: ", 2)[2] for i in item_ids]
+        )
+    else:
+        all_node_ids = ["Total Score"] + main_cats + sub_ids + item_ids
+        all_labels   = (
+            ["Total Score"]
+            + main_cats
+            + [s.split(" :: ", 1)[1] for s in sub_ids]
+            + [i.split(" :: ", 2)[2] for i in item_ids]
+        )
     node_map = {nid: i for i, nid in enumerate(all_node_ids)}
     sources, targets, values = [], [], []
 
-    for cat in main_cats:
-        sources.append(node_map["Total Score"])
-        targets.append(node_map[cat])
-        values.append(int(df[df["Main Category"] == cat]["Weight"].sum()))
+    if not hide_total:
+        for cat in main_cats:
+            sources.append(node_map["Total Score"])
+            targets.append(node_map[cat])
+            values.append(int(df[df["Main Category"] == cat]["Weight"].sum()))
 
     for _, row in df.groupby(["Main Category", "Sub Security Score"])["Weight"].sum().reset_index().iterrows():
         sub_id = f"{row['Main Category']} :: {row['Sub Security Score']}"
@@ -463,16 +472,35 @@ def plot_hierarchy(df):
         targets.append(node_map[item_id])
         values.append(int(row["Weight"]))
 
+    title = "Data Flow: Items → Sub-Scores → Categories" + ("" if hide_total else " → Total Score")
     fig = go.Figure(data=[go.Sankey(
         node=dict(pad=20, thickness=20, line=dict(color="black", width=0.5), label=all_labels, color="deepskyblue"),
         link=dict(source=sources, target=targets, value=values, color="rgba(0, 191, 255, 0.2)"),
     )])
-    fig.update_layout(title_text="Data Flow: Items → Sub-Scores → Categories → Total Score", font_size=12, height=600)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        title_text=title,
+        font_size=12,
+        height=600,
+        dragmode="pan",
+    )
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "modeBarButtonsToAdd": ["zoom2d", "pan2d", "resetScale2d"],
+            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+            "displaylogo": False,
+        },
+    )
 
 
 if not edited_df.empty:
-    plot_hierarchy(edited_df)
+    vis_ctrl_col, vis_toggle_col = st.columns([5, 2])
+    with vis_toggle_col:
+        hide_total_node = st.checkbox("Hide Total Score node", value=False, key="hide_total_node")
+    plot_hierarchy(edited_df, hide_total=hide_total_node)
 else:
     st.warning("No data to visualize.")
 
